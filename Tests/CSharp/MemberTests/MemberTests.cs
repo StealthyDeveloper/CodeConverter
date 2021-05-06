@@ -754,6 +754,79 @@ public partial class A
         }
 
         [Fact]
+        public async Task UnAssignedFieldWinFormsDesignerAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
+Partial Class TestClass
+  Inherits System.Windows.Forms.Form
+
+  <System.Diagnostics.DebuggerNonUserCode()>
+  Protected Sub Dispose(ByVal disposing As Boolean)
+    Try
+      If disposing AndAlso components IsNot Nothing Then
+        components.Dispose()
+      End If
+    Finally
+      MyBase.Dispose(disposing)
+    End Try
+  End Sub
+
+  'Required by the Windows Form Designer
+  Private components As System.ComponentModel.IContainer
+
+  'NOTE: The following procedure is required by the Windows Form Designer
+  'It can be modified using the Windows Form Designer.  
+  'Do not modify it using the code editor.
+  <System.Diagnostics.DebuggerStepThrough()>
+  Private Sub InitializeComponent()
+    Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
+    Me.ClientSize = New System.Drawing.Size(800, 450)
+    Me.Text = ""Form1""
+  End Sub
+End Class", @"using System.Diagnostics;
+
+[Microsoft.VisualBasic.CompilerServices.DesignerGenerated()]
+internal partial class TestClass : System.Windows.Forms.Form
+{
+    public TestClass()
+    {
+        InitializeComponent();
+    }
+
+    [DebuggerNonUserCode()]
+    protected void Dispose(bool disposing)
+    {
+        try
+        {
+            if (disposing && components is object)
+            {
+                components.Dispose();
+            }
+        }
+        finally
+        {
+            base.Dispose(disposing);
+        }
+    }
+
+    // Required by the Windows Form Designer
+    private System.ComponentModel.IContainer components;
+
+    // NOTE: The following procedure is required by the Windows Form Designer
+    // It can be modified using the Windows Form Designer.  
+    // Do not modify it using the code editor.
+    [DebuggerStepThrough()]
+    private void InitializeComponent()
+    {
+        components = new System.ComponentModel.Container();
+        AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+        ClientSize = new System.Drawing.Size(800, 450);
+        Text = ""Form1"";
+    }
+}");
+        }
+
+        [Fact]
         public async Task Issue281FieldWithNonStaticLambdaInitializerAsync()
         {
             await TestConversionVisualBasicToCSharpAsync(@"Imports System.IO
