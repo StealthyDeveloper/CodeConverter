@@ -33,8 +33,9 @@ namespace ICSharpCode.CodeConverter.Shared
         private readonly ILanguageConversion _languageConversion;
         private readonly bool _showCompilationErrors;
         private readonly bool _returnSelectedNode;
-        private static readonly string[] BannedPaths = new[] { ".AssemblyAttributes.", "\\bin\\", "\\obj\\" };
+        private static readonly string[] BannedPaths = { ".AssemblyAttributes.", "\\bin\\", "\\obj\\" };
         private readonly CancellationToken _cancellationToken;
+        private static readonly string[] UnusedDiagnosticIds = { "CS0169", "CS0414", "CS0219" };
 
         private ProjectConversion(IProjectContentsConverter projectContentsConverter, IEnumerable<Document> documentsToConvert, IEnumerable<TextDocument> additionalDocumentsToConvert,
             ILanguageConversion languageConversion, CancellationToken cancellationToken, bool showCompilationErrors, bool returnSelectedNode = false)
@@ -269,7 +270,7 @@ namespace ICSharpCode.CodeConverter.Shared
             var root = await tree.GetRootAsync();
             var diagnostics = compilation.GetDiagnostics();
             var unusedVariablesAndFields = diagnostics
-               .Where(d => d.Id == "CS0219" || d.Id == "CS0414")
+               .Where(d => UnusedDiagnosticIds.Contains(d.Id))
                .Where(d => d.Location?.SourceTree == tree)
                .Select(d => root.FindNode(d.Location.SourceSpan))
                .Select(node => (SyntaxNode)node.FirstAncestorOrSelf<LocalDeclarationStatementSyntax>() ?? node.FirstAncestorOrSelf<FieldDeclarationSyntax>())
