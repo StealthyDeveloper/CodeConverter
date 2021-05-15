@@ -70,9 +70,9 @@ namespace ICSharpCode.CodeConverter.VB
         }
 
         public async Task<(Project project, List<WipFileConversion<DocumentId>> firstPassDocIds)>
-            GetConvertedProjectAsync(WipFileConversion<SyntaxNode>[] firstPassResults)
+            GetConvertedProjectAsync(WipFileConversion<SyntaxNode>[] results)
         {
-            return _convertedVbProject.WithDocuments(firstPassResults);
+            return _convertedVbProject.WithDocuments(results);
         }
 
         public async IAsyncEnumerable<ConversionResult> GetAdditionalConversionResults(IReadOnlyCollection<TextDocument> additionalDocumentsToConvert, [EnumeratorCancellation] CancellationToken cancellationToken)

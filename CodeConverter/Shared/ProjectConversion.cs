@@ -11,17 +11,6 @@ using ICSharpCode.CodeConverter.CSharp;
 using ICSharpCode.CodeConverter.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using ICSharpCode.CodeConverter.Util.FromRoslyn;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Editing;
-using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.CodeAnalysis.Formatting;
-using ExpressionStatementSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionStatementSyntax;
-using FieldDeclarationSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.FieldDeclarationSyntax;
-using LocalDeclarationStatementSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.LocalDeclarationStatementSyntax;
-using NameSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.NameSyntax;
-using TypeSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.TypeSyntax;
 
 namespace ICSharpCode.CodeConverter.Shared
 {
@@ -195,11 +184,12 @@ namespace ICSharpCode.CodeConverter.Shared
             var warnings = await GetProjectWarningsAsync(_projectContentsConverter.SourceProject, proj1);
             if (!string.IsNullOrWhiteSpace(warnings)) {
                 var warningPath = Path.Combine(_projectContentsConverter.SourceProject.GetDirectoryPath(), "ConversionWarnings.txt");
-                yield return new ConversionResult() { SourcePathOrNull = warningPath, Exceptions = new[] { warnings } };
+                yield return new ConversionResult { SourcePathOrNull = warningPath, Exceptions = new[] { warnings } };
             }
 
             phaseProgress = StartPhase(progress, "Phase 2 of 2:");
             var secondPassResults = proj1.GetDocuments(docs1).ParallelSelectAwait(d => SecondPassLoggedAsync(d, phaseProgress), Env.MaxDop, _cancellationToken);
+
             await foreach (var result in secondPassResults.Select(CreateConversionResult).WithCancellation(_cancellationToken)) {
                 yield return result;
             }
@@ -238,21 +228,19 @@ namespace ICSharpCode.CodeConverter.Shared
             SyntaxNode selectedNode = null;
             string[] errors = Array.Empty<string>();
             try {
-                var newDocument = await AssignUnassignedWinformsDesignerFieldsAsync(convertedDocument);
-                Document document = await _languageConversion.SingleSecondPassAsync(newDocument);
-                var filteredDocument = await RemoveUnusedVariablesAndFieldsAsync(document);
+                Document simplifiedDocument = await _languageConversion.SingleSecondPassAsync(convertedDocument);
 
                 if (_returnSelectedNode) {
-                    selectedNode = await GetSelectedNodeAsync(filteredDocument);
+                    selectedNode = await GetSelectedNodeAsync(simplifiedDocument);
                     var extraLeadingTrivia = selectedNode.GetFirstToken().GetPreviousToken().TrailingTrivia;
                     var extraTrailingTrivia = selectedNode.GetLastToken().GetNextToken().LeadingTrivia;
-                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, filteredDocument);
+                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, simplifiedDocument);
                     if (extraLeadingTrivia.Any(t => !t.IsWhitespaceOrEndOfLine())) selectedNode = selectedNode.WithPrependedLeadingTrivia(extraLeadingTrivia);
                     if (extraTrailingTrivia.Any(t => !t.IsWhitespaceOrEndOfLine())) selectedNode = selectedNode.WithAppendedTrailingTrivia(extraTrailingTrivia);
                 } else {
-                    selectedNode = await filteredDocument.GetSyntaxRootAsync(_cancellationToken);
-                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, filteredDocument);
-                    var convertedDoc = filteredDocument.WithSyntaxRoot(selectedNode);
+                    selectedNode = await simplifiedDocument.GetSyntaxRootAsync(_cancellationToken);
+                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, simplifiedDocument);
+                    var convertedDoc = simplifiedDocument.WithSyntaxRoot(selectedNode);
                     selectedNode = await convertedDoc.GetSyntaxRootAsync(_cancellationToken);
                 }
             } catch (Exception e) {
@@ -261,92 +249,6 @@ namespace ICSharpCode.CodeConverter.Shared
 
             var convertedNode = selectedNode ?? await convertedDocument.GetSyntaxRootAsync(_cancellationToken);
             return (convertedNode, errors);
-        }
-
-        private static async Task<Document> RemoveUnusedVariablesAndFieldsAsync(Document document)
-        {
-            var compilation = await document.Project.GetCompilationAsync();
-            var tree = await document.GetSyntaxTreeAsync();
-            var root = await tree.GetRootAsync();
-            var diagnostics = compilation.GetDiagnostics();
-            var unusedVariablesAndFields = diagnostics
-               .Where(d => UnusedDiagnosticIds.Contains(d.Id))
-               .Where(d => d.Location?.SourceTree == tree)
-               .Select(d => root.FindNode(d.Location.SourceSpan))
-               .Select(node => (SyntaxNode)node.FirstAncestorOrSelf<LocalDeclarationStatementSyntax>() ?? node.FirstAncestorOrSelf<FieldDeclarationSyntax>())
-               .ToList();
-            return document.WithSyntaxRoot(
-                root.RemoveNodes(unusedVariablesAndFields, SyntaxRemoveOptions.KeepNoTrivia));
-        }
-
-        private static async Task<Document> AssignUnassignedWinformsDesignerFieldsAsync(Document document)
-        {
-            var compilation = await document.Project.GetCompilationAsync();
-            var designerGeneratedName = compilation.DesignerGeneratedAttributeType().GetFullMetadataName();
-            var tree = await document.GetSyntaxTreeAsync();
-            var semanticModel = compilation.GetSemanticModel(tree, true);
-            var root = await tree.GetRootAsync();
-            var diagnostics = compilation.GetDiagnostics();
-
-            var icNodes = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
-                   .Where(decl => decl.Identifier.ValueText == "InitializeComponent");
-
-            var unassignedFields = await diagnostics
-               .Where(d => d.Id == "CS0649")
-               .Where(d => d.Location?.SourceTree == tree)
-               .Select(d => root.FindNode(d.Location.SourceSpan))
-               .Select(node => node.FirstAncestorOrSelf<FieldDeclarationSyntax>())
-               .Where(node => node?.FirstAncestorOrSelf<ClassDeclarationSyntax>()?.AttributeLists
-                   .Any(alist => alist.Attributes.Any(a => a.Name.ToString()
-                       .Contains(designerGeneratedName))) ?? false)
-               .SelectAsync(async node => await GetFieldTypeTupleAsync(document, semanticModel, node));
-
-            var newRoot = root.ReplaceNodes(icNodes, (o, r) => ComputeAssignmentReplacements(o, unassignedFields));
-            var formattedRoot = Formatter.Format(newRoot, Formatter.Annotation, document.Project.Solution.Workspace);
-
-            return document.WithSyntaxRoot(formattedRoot);
-        }
-
-        private static async Task<(FieldDeclarationSyntax node, TypeSyntax fieldAssignmentType)> GetFieldTypeTupleAsync(Document document, SemanticModel semanticModel, FieldDeclarationSyntax node)
-        {
-            var fieldsymbol = semanticModel.GetSymbolInfo(node.Declaration.Type).Symbol as ITypeSymbol;
-            var fieldAssignmentType = fieldsymbol.IsInterfaceType()
-                ? await GetFieldInterfaceImplementationNameAsync(document, fieldsymbol)
-                : node.Declaration.Type;
-
-            return (node, fieldAssignmentType);
-        }
-
-        private static async Task<NameSyntax> GetFieldInterfaceImplementationNameAsync(Document document, ITypeSymbol fieldsymbol)
-        {
-            var implementations = await SymbolFinder.FindImplementationsAsync(fieldsymbol, document.Project.Solution);
-            var impl = implementations.First() as ITypeSymbol;
-            var syntaxGenerator = SyntaxGenerator.GetGenerator(document.Project);
-            return (NameSyntax)syntaxGenerator.TypeExpression(impl);
-        }
-
-        private static SyntaxNode ComputeAssignmentReplacements(MethodDeclarationSyntax icNode, IEnumerable<(FieldDeclarationSyntax node,
-                TypeSyntax fieldAssignmentType)> unassignedFields)
-        {
-            var expressions = new List<ExpressionStatementSyntax>();
-            foreach (var (field, fieldAssignmentType) in unassignedFields)
-            {
-                expressions.AddRange(field.Declaration.Variables.Select(variable =>
-                {
-                    var lhs = SyntaxFactory.IdentifierName(variable.Identifier.Text);
-                    var rhs = SyntaxFactory.ObjectCreationExpression(fieldAssignmentType,
-                        SyntaxFactory.ArgumentList(), null);
-                    var assignment = SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, lhs,
-                        rhs);
-                    return SyntaxFactory.ExpressionStatement(assignment);
-                }));
-            }
-
-            var newStatements = icNode.Body.Statements.InsertRange(0, expressions);
-            var newBody = icNode.Body.WithStatements(newStatements);
-            var newicNode = icNode.WithBody(newBody).WithAdditionalAnnotations(Formatter.Annotation);
-
-            return newicNode;
         }
 
         private async Task<string> GetProjectWarningsAsync(Project source, Project converted)

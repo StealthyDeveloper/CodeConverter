@@ -25,14 +25,15 @@ namespace ICSharpCode.CodeConverter.CSharp
         private const string UnresolvedNamespaceDiagnosticId = "CS0246";
         private const string FabricatedAssemblyName = ISymbolExtensions.ForcePartialTypesAssemblyName;
         private VBToCSProjectContentsConverter _vbToCsProjectContentsConverter;
-        private IProgress<ConversionProgress> _progress;
         private CancellationToken _cancellationToken;
+
+        private ReportDiagnostic GeneralReportDiagnostics => ConversionOptions.TargetCompilationOptionsOverride?
+           .GeneralDiagnosticOption ?? ReportDiagnostic.Default;
 
         public ConversionOptions ConversionOptions { get; set; }
 
         public async Task<IProjectContentsConverter> CreateProjectContentsConverterAsync(Project project, IProgress<ConversionProgress> progress, CancellationToken cancellationToken)
         {
-            _progress = progress;
             _cancellationToken = cancellationToken;
             bool useProjectLevelWinformsAdjustments = project.AssemblyName != FabricatedAssemblyName;
             _vbToCsProjectContentsConverter = new VBToCSProjectContentsConverter(ConversionOptions, useProjectLevelWinformsAdjustments, progress, cancellationToken);
@@ -231,8 +232,8 @@ End Class";
         }
 
         private VisualBasicCompiler CreateCompiler()
-        {
-            return new VisualBasicCompiler(ConversionOptions.RootNamespaceOverride);
+            {
+            return new VisualBasicCompiler(ConversionOptions.RootNamespaceOverride, GeneralReportDiagnostics);
         }
 
         public async Task<Document> CreateProjectDocumentFromTreeAsync(SyntaxTree tree, IEnumerable<MetadataReference> references)
@@ -243,7 +244,7 @@ End Class";
 
         private async Task<Project> CreateEmptyVbProjectAsync(IEnumerable<MetadataReference> references)
         {
-            return await VisualBasicCompiler.CreateCompilationOptions(ConversionOptions.RootNamespaceOverride)
+            return await VisualBasicCompiler.CreateCompilationOptions(ConversionOptions.RootNamespaceOverride, GeneralReportDiagnostics)
                             .CreateProjectAsync(references, VisualBasicParseOptions.Default, FabricatedAssemblyName);
         }
     }

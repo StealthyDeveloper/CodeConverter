@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ICSharpCode.CodeConverter;
 using ICSharpCode.CodeConverter.CSharp;
 using ICSharpCode.CodeConverter.Shared;
 using ICSharpCode.CodeConverter.VB;
@@ -26,6 +25,7 @@ namespace ICSharpCode.CodeConverter.Tests.TestRunners
 
         protected TextConversionOptions EmptyNamespaceOptionStrictOff { get; }
         protected TextConversionOptions VisualBasic11 { get; }
+        protected TextConversionOptions TreatWarningsAsErrors { get; }
 
         public ConverterTestBase(string rootNamespace = null)
         {
@@ -35,13 +35,21 @@ namespace ICSharpCode.CodeConverter.Tests.TestRunners
                                 .WithOptionCompareText(false)
                                 .WithOptionStrict(OptionStrict.Off)
                                 .WithOptionInfer(true);
+
             EmptyNamespaceOptionStrictOff = new TextConversionOptions(DefaultReferences.NetStandard2) {
                 RootNamespaceOverride = string.Empty, TargetCompilationOptionsOverride = options,
                 ShowCompilationErrors = true
             };
+
             VisualBasic11 = new TextConversionOptions(DefaultReferences.NetStandard2) {
                 RootNamespaceOverride = string.Empty,
                 TargetCompilationOptionsOverride = options.WithParseOptions(new VisualBasicParseOptions(LanguageVersion.VisualBasic11)),
+                ShowCompilationErrors = true
+            };
+
+            TreatWarningsAsErrors = new TextConversionOptions(DefaultReferences.NetStandard2) {
+                RootNamespaceOverride = string.Empty,
+                TargetCompilationOptionsOverride = options.WithGeneralDiagnosticOption(ReportDiagnostic.Error),
                 ShowCompilationErrors = true
             };
         }
@@ -98,13 +106,18 @@ End Sub";
             return expectedVisualBasicCode;
         }
 
+        public async Task TestConversionVisualBasicToCSharpAsync(string visualBasicCode, string expectedCsharpCode, TextConversionOptions conversionOptions)
+        {
+            await TestConversionVisualBasicToCSharpAsync(visualBasicCode, expectedCsharpCode, false, conversionOptions: conversionOptions);
+        }
+
         /// <summary>
         /// <paramref name="missingSemanticInfo"/> is currently unused but acts as documentation, and in future will be used to decide whether to check if the input/output compiles
         /// </summary>
-        public async Task TestConversionVisualBasicToCSharpAsync(string visualBasicCode, string expectedCsharpCode, bool expectSurroundingBlock = false, bool missingSemanticInfo = false, bool hasLineCommentConversionIssue = false)
+        public async Task TestConversionVisualBasicToCSharpAsync(string visualBasicCode, string expectedCsharpCode, bool expectSurroundingBlock = false, bool missingSemanticInfo = false, bool hasLineCommentConversionIssue = false, TextConversionOptions conversionOptions = null)
         {
             if (expectSurroundingBlock) expectedCsharpCode = SurroundWithBlock(expectedCsharpCode);
-            var conversionOptions = new TextConversionOptions(DefaultReferences.NetStandard2) { RootNamespaceOverride = _rootNamespace, ShowCompilationErrors = !expectSurroundingBlock };
+            conversionOptions ??= new TextConversionOptions(DefaultReferences.NetStandard2) { RootNamespaceOverride = _rootNamespace, ShowCompilationErrors = !expectSurroundingBlock };
             await AssertConvertedCodeResultEqualsAsync<VBToCSConversion>(visualBasicCode, expectedCsharpCode, conversionOptions);
 
             if (_testVbtoCsCommentsByDefault && !hasLineCommentConversionIssue) {

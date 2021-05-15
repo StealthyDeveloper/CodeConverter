@@ -754,6 +754,44 @@ public partial class A
         }
 
         [Fact]
+        public async Task Cs0169TreatWarningAsErrorsAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class A
+    Dim x As Integer
+End Class", @"
+public partial class A
+{
+}", TreatWarningsAsErrors);
+        }
+
+        [Fact]
+        public async Task Cs0414TreatWarningAsErrorsAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class A
+    Dim x As Integer = 2
+End Class", @"
+public partial class A
+{
+}", TreatWarningsAsErrors);
+        }
+
+        [Fact]
+        public async Task Cs0219TreatWarningAsErrorsAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class A
+    Sub New()
+        Dim x = 2        
+    End Sub
+End Class", @"
+public partial class A
+{
+    public A()
+    {
+    }
+}", TreatWarningsAsErrors);
+        }
+
+        [Fact]
         public async Task UnAssignedFieldWinFormsDesignerAsync()
         {
             await TestConversionVisualBasicToCSharpAsync(@"<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
@@ -761,7 +799,7 @@ Partial Class TestClass
   Inherits System.Windows.Forms.Form
 
   <System.Diagnostics.DebuggerNonUserCode()>
-  Protected Sub Dispose(ByVal disposing As Boolean)
+  Protected Overrides Sub Dispose(ByVal disposing As Boolean)
     Try
       If disposing AndAlso components IsNot Nothing Then
         components.Dispose()
@@ -794,7 +832,7 @@ internal partial class TestClass : System.Windows.Forms.Form
     }
 
     [DebuggerNonUserCode()]
-    protected void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
         try
         {
@@ -823,7 +861,7 @@ internal partial class TestClass : System.Windows.Forms.Form
         ClientSize = new System.Drawing.Size(800, 450);
         Text = ""Form1"";
     }
-}");
+}", TreatWarningsAsErrors);
         }
 
         [Fact]
