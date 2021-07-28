@@ -574,7 +574,7 @@ public partial class TestIssue479
                     // At the same time as this loop I added "aliasedAgain" in the hope that it'd discourage the simplifier from fully qualifying Strings
                     await FlakeyAliasedImportsWithTypePromotionIssue401Async();
                     return;
-                } catch (Exception e) {
+                } catch (Exception) {
                 }
             }
 
