@@ -22,6 +22,9 @@
     <Compile Include="..\CodeConverter\Shared\DefaultReferences.cs" Link="DefaultReferences.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="3.1.4" />

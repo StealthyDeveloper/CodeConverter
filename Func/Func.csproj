@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
@@ -10,6 +10,7 @@
     <_FunctionsSkipCleanOutput>true</_FunctionsSkipCleanOutput>
     <UserSecretsId>1d2f0b91-7e29-4920-8a93-e52863d06c2e</UserSecretsId>
   </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="..\CodeConverter\Shared\DefaultReferences.cs" Link="DefaultReferences.cs" />
     <Compile Include="..\Web\Models\ConvertRequest.cs" Link="ConvertRequest.cs" />
@@ -17,6 +18,7 @@
     <Compile Include="..\Web\WebConverter.cs" Link="WebConverter.cs" />
     <None Include="local.settings.json" />
   </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Storage" Version="3.0.10" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="3.0.9" />
@@ -28,9 +30,11 @@
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Workspaces" Version="3.7.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="3.7.0" />
   </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\CodeConverter\CodeConverter.csproj" />
   </ItemGroup>
+
   <ItemGroup>
     <None Update="host.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -40,4 +44,5 @@
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
   </ItemGroup>
+
 </Project>
