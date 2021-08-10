@@ -27,6 +27,9 @@ namespace ICSharpCode.CodeConverter.CSharp
         private VBToCSProjectContentsConverter _vbToCsProjectContentsConverter;
         private CancellationToken _cancellationToken;
 
+        private ReportDiagnostic GeneralReportDiagnostics => ConversionOptions.TargetCompilationOptionsOverride?
+           .GeneralDiagnosticOption ?? ReportDiagnostic.Default;
+
         public ConversionOptions ConversionOptions { get; set; }
 
         public async Task<IProjectContentsConverter> CreateProjectContentsConverterAsync(Project project,
@@ -230,8 +233,8 @@ End Class";
         }
 
         private VisualBasicCompiler CreateCompiler()
-        {
-            return new VisualBasicCompiler(ConversionOptions.RootNamespaceOverride);
+            {
+            return new VisualBasicCompiler(ConversionOptions.RootNamespaceOverride, GeneralReportDiagnostics);
         }
 
         public async Task<Document> CreateProjectDocumentFromTreeAsync(SyntaxTree tree, IEnumerable<MetadataReference> references)
@@ -242,7 +245,7 @@ End Class";
 
         private async Task<Project> CreateEmptyVbProjectAsync(IEnumerable<MetadataReference> references)
         {
-            return await VisualBasicCompiler.CreateCompilationOptions(ConversionOptions.RootNamespaceOverride)
+            return await VisualBasicCompiler.CreateCompilationOptions(ConversionOptions.RootNamespaceOverride, GeneralReportDiagnostics)
                             .CreateProjectAsync(references, VisualBasicParseOptions.Default, FabricatedAssemblyName);
         }
     }

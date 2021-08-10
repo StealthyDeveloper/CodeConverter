@@ -24,6 +24,7 @@ namespace ICSharpCode.CodeConverter.Shared
         private readonly bool _returnSelectedNode;
         private static readonly string[] BannedPaths = { ".AssemblyAttributes.", "\\bin\\", "\\obj\\" };
         private readonly CancellationToken _cancellationToken;
+        private static readonly string[] UnusedDiagnosticIds = { "CS0169", "CS0414", "CS0219" };
 
         private ProjectConversion(IProjectContentsConverter projectContentsConverter, IEnumerable<Document> documentsToConvert, IEnumerable<TextDocument> additionalDocumentsToConvert,
             ILanguageConversion languageConversion, CancellationToken cancellationToken, bool showCompilationErrors, bool returnSelectedNode = false)
@@ -188,11 +189,12 @@ namespace ICSharpCode.CodeConverter.Shared
             var warnings = await GetProjectWarningsAsync(_projectContentsConverter.SourceProject, proj1);
             if (!string.IsNullOrWhiteSpace(warnings)) {
                 var warningPath = Path.Combine(_projectContentsConverter.SourceProject.GetDirectoryPath(), "ConversionWarnings.txt");
-                yield return new ConversionResult() { SourcePathOrNull = warningPath, Exceptions = new[] { warnings } };
+                yield return new ConversionResult { SourcePathOrNull = warningPath, Exceptions = new[] { warnings } };
             }
 
             phaseProgress = StartPhase(progress, "Phase 2 of 2:");
             var secondPassResults = proj1.GetDocuments(docs1).ParallelSelectAwait(d => SecondPassLoggedAsync(d, phaseProgress), Env.MaxDop, _cancellationToken);
+
             await foreach (var result in secondPassResults.Select(CreateConversionResult).WithCancellation(_cancellationToken)) {
                 yield return result;
             }
@@ -231,18 +233,19 @@ namespace ICSharpCode.CodeConverter.Shared
             SyntaxNode selectedNode = null;
             string[] errors = Array.Empty<string>();
             try {
-                Document document = await _languageConversion.SingleSecondPassAsync(convertedDocument);
+                Document simplifiedDocument = await _languageConversion.SingleSecondPassAsync(convertedDocument);
+
                 if (_returnSelectedNode) {
-                    selectedNode = await GetSelectedNodeAsync(document);
+                    selectedNode = await GetSelectedNodeAsync(simplifiedDocument);
                     var extraLeadingTrivia = selectedNode.GetFirstToken().GetPreviousToken().TrailingTrivia;
                     var extraTrailingTrivia = selectedNode.GetLastToken().GetNextToken().LeadingTrivia;
-                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, document);
+                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, simplifiedDocument);
                     if (extraLeadingTrivia.Any(t => !t.IsWhitespaceOrEndOfLine())) selectedNode = selectedNode.WithPrependedLeadingTrivia(extraLeadingTrivia);
                     if (extraTrailingTrivia.Any(t => !t.IsWhitespaceOrEndOfLine())) selectedNode = selectedNode.WithAppendedTrailingTrivia(extraTrailingTrivia);
                 } else {
-                    selectedNode = await document.GetSyntaxRootAsync(_cancellationToken);
-                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, document);
-                    var convertedDoc = document.WithSyntaxRoot(selectedNode);
+                    selectedNode = await simplifiedDocument.GetSyntaxRootAsync(_cancellationToken);
+                    selectedNode = _projectContentsConverter.OptionalOperations.Format(selectedNode, simplifiedDocument);
+                    var convertedDoc = simplifiedDocument.WithSyntaxRoot(selectedNode);
                     selectedNode = await convertedDoc.GetSyntaxRootAsync(_cancellationToken);
                 }
             } catch (Exception e) {

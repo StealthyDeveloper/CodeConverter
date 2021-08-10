@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using ICSharpCode.CodeConverter.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.VisualBasic;
 
@@ -12,15 +11,17 @@ namespace ICSharpCode.CodeConverter.Shared
     {
         private static readonly Lazy<VisualBasicCompilation> LazyVisualBasicCompilation = new(CreateVisualBasicCompilation);
         private readonly string _rootNamespace;
+        private readonly ReportDiagnostic _generalDiagnosticOption;
 
         // ReSharper disable once UnusedMember.Global - Used via generics
-        public VisualBasicCompiler() : this("")
+        public VisualBasicCompiler() : this("", ReportDiagnostic.Default)
         {
         }
 
-        public VisualBasicCompiler(string rootNamespace)
+        public VisualBasicCompiler(string rootNamespace, ReportDiagnostic generalDiagnosticOption)
         {
             _rootNamespace = rootNamespace;
+            _generalDiagnosticOption = generalDiagnosticOption;
         }
 
         public SyntaxTree CreateTree(string text)
@@ -30,15 +31,17 @@ namespace ICSharpCode.CodeConverter.Shared
 
         public Compilation CreateCompilationFromTree(SyntaxTree tree, IEnumerable<MetadataReference> references)
         {
-            var withReferences = CreateVisualBasicCompilation(references, _rootNamespace);
+            var withReferences = CreateVisualBasicCompilation(references, _rootNamespace, _generalDiagnosticOption);
             return withReferences.AddSyntaxTrees(tree);
         }
 
-        public static VisualBasicCompilation CreateVisualBasicCompilation(IEnumerable<MetadataReference> references, string rootNamespace = null)
+        public static VisualBasicCompilation CreateVisualBasicCompilation(IEnumerable<MetadataReference> references,
+            string rootNamespace, ReportDiagnostic generalDiagnosticOption)
         {
             var visualBasicCompilation = LazyVisualBasicCompilation.Value;
             var withReferences = visualBasicCompilation
-                .WithOptions(visualBasicCompilation.Options.WithRootNamespace(rootNamespace))
+                .WithOptions(visualBasicCompilation.Options.WithRootNamespace(rootNamespace)
+                   .WithGeneralDiagnosticOption(generalDiagnosticOption))
                 .WithReferences(visualBasicCompilation.References.Concat(references).Distinct());
             return withReferences;
         }
@@ -50,7 +53,7 @@ namespace ICSharpCode.CodeConverter.Shared
                 .WithOptions(compilationOptions);
         }
 
-        public static VisualBasicCompilationOptions CreateCompilationOptions(string rootNamespace = null)
+        public static VisualBasicCompilationOptions CreateCompilationOptions(string rootNamespace = null, ReportDiagnostic generalReportDiagnostic = ReportDiagnostic.Default)
         {
             // Caution: The simplifier won't always remove imports unused by the code
             // Known cases are unresolved usings and overload resolution across namespaces (e.g. System.Data.Where
@@ -77,7 +80,9 @@ namespace ICSharpCode.CodeConverter.Shared
                 .WithOptionCompareText(false)
                 .WithOptionStrict(OptionStrict.Off)
                 .WithOptionInfer(true)
-                .WithRootNamespace(rootNamespace);
+                .WithRootNamespace(rootNamespace)
+                .WithGeneralDiagnosticOption(generalReportDiagnostic);
+
             return compilationOptions;
         }
 

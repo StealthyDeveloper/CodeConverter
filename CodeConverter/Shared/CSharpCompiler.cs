@@ -33,9 +33,9 @@ namespace ICSharpCode.CodeConverter.Shared
             return CSharpCompilation.Create("Conversion", options: CreateCompilationOptions());
         }
 
-        public static CSharpCompilationOptions CreateCompilationOptions()
+        public static CSharpCompilationOptions CreateCompilationOptions(ReportDiagnostic generalDiagnosticOption = ReportDiagnostic.Default)
         {
-            return new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true);
+            return new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true, generalDiagnosticOption: generalDiagnosticOption);
         }
 
         public static CSharpParseOptions ParseOptions { get; } = new CSharpParseOptions(LanguageVersion.Latest);

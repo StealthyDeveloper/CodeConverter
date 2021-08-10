@@ -29,6 +29,7 @@ namespace ICSharpCode.CodeConverter.CSharp
         private Project _csharpReferenceProject;
         private readonly IProgress<ConversionProgress> _progress;
         private readonly CancellationToken _cancellationToken;
+        private readonly DiagnosticsResolver _diagnosticsResolver;
 
         public VBToCSProjectContentsConverter(ConversionOptions conversionOptions,
             bool useProjectLevelWinformsAdjustments,
@@ -39,17 +40,22 @@ namespace ICSharpCode.CodeConverter.CSharp
             _progress = progress;
             _cancellationToken = cancellationToken;
             OptionalOperations = new OptionalOperations(conversionOptions.AbandonOptionalTasksAfter, progress, cancellationToken);
+            _diagnosticsResolver = new DiagnosticsResolver();
         }
 
         public OptionalOperations OptionalOperations { get; }
 
-        public string RootNamespace => _conversionOptions.RootNamespaceOverride ??
-                                       ((VisualBasicCompilationOptions)SourceProject.CompilationOptions).RootNamespace;
-
+        public string RootNamespace => _conversionOptions.RootNamespaceOverride
+                                       ?? ((VisualBasicCompilationOptions)SourceProject.CompilationOptions)
+                                      .RootNamespace;
         public async Task InitializeSourceAsync(Project project)
         {
             project = await ClashingMemberRenamer.RenameClashingSymbolsAsync(project);
-            var cSharpCompilationOptions = CSharpCompiler.CreateCompilationOptions();
+
+            var generalDiagnosticOption = _conversionOptions.TargetCompilationOptionsOverride?.GeneralDiagnosticOption
+                                       ?? ((VisualBasicCompilationOptions)project.CompilationOptions).GeneralDiagnosticOption;
+
+            var cSharpCompilationOptions = CSharpCompiler.CreateCompilationOptions(generalDiagnosticOption);
             _convertedCsProject = project.ToProjectFromAnyOptions(cSharpCompilationOptions, CSharpCompiler.ParseOptions);
             _csharpReferenceProject = project.CreateReferenceOnlyProjectFromAnyOptions(cSharpCompilationOptions, CSharpCompiler.ParseOptions);
             _csharpViewOfVbSymbols = (CSharpCompilation)await _csharpReferenceProject.GetCompilationAsync(_cancellationToken);
@@ -78,7 +84,17 @@ namespace ICSharpCode.CodeConverter.CSharp
             var projDirPath = SourceProject.GetDirectoryPath();
             var (project, docIds) = _convertedCsProject.WithDocuments(firstPassResults.Select(r => r.WithTargetPath(GetTargetPath(projDirPath, r))).ToArray());
             if (_useProjectLevelWinformsAdjustments) project = await project.RenameMergedNamespacesAsync(_progress, _cancellationToken);
-            return (project, docIds);
+            var newDocIds = await docIds.SelectAsync(async id =>
+            {
+                var document = project.GetDocument(id.Wip);
+                var newRoot = await _diagnosticsResolver.ResolveDiagnosticsAsync(document);
+                var solution = project.Solution.RemoveDocument(id.Wip).AddDocument(document.Id, document.Name, newRoot, filePath: document.FilePath);
+                project = solution.GetProject(project.Id);
+
+                return id.With(document.Id);
+            });
+            
+            return (project, newDocIds.ToList());
         }
 
         private string GetTargetPath(string projDirPath, WipFileConversion<SyntaxNode> r)

@@ -26,6 +26,7 @@ namespace ICSharpCode.CodeConverter.Shared
             typeof(System.Data.DataTableExtensions),
             typeof(System.Net.Http.HttpClient),
             typeof(System.Web.HttpUtility),
+            typeof(System.Windows.Forms.Form),
             typeof(System.Xml.XmlElement),
             typeof(System.Xml.Linq.XElement),
             typeof(Microsoft.VisualBasic.Constants),
