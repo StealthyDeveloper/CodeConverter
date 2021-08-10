@@ -69,9 +69,20 @@ namespace ICSharpCode.CodeConverter.CSharp
         public string PostTransformProjectFile(string xml)
         {
             xml = ProjectFileTextEditor.WithUpdatedDefaultItemExcludes(xml, "cs", "vb");
+            const string refReplacement = "$1  <Reference Include=\"Microsoft.VisualBasic\" />$1";
 
-            if (!Regex.IsMatch(xml, @"<Reference\s+Include=""Microsoft.VisualBasic""\s*/>")) {
-                xml = new Regex(@"(<ItemGroup>)(\s*)").Replace(xml, "$1$2<Reference Include=\"Microsoft.VisualBasic\" />$2", 1);
+            if (!Regex.IsMatch(xml, @"<(?:TargetFrameworks|TargetFramework)>(?:.*(netstandard|netcore|net[5-9])).*") && !Regex.IsMatch(xml, @"<Reference\s+Include=""Microsoft.VisualBasic""\s*/>"))
+            {
+                var itemGroupRegex = new Regex(@"(<ItemGroup>)(\s*)");
+                xml = itemGroupRegex.IsMatch(xml) switch 
+                {
+                    true => itemGroupRegex.Replace(xml, "$1$2<Reference Include=\"Microsoft.VisualBasic\" />$2", 1),
+                    var _ => new Regex(@"(\s*)(</PropertyGroup>)(\s*)", RegexOptions.RightToLeft).Replace(xml, $"$1$2\r\n$1<ItemGroup>{refReplacement}</ItemGroup>$3", 1)
+                };
+            }
+            else if (Regex.IsMatch(xml, @"<(?:TargetFrameworks)>(?:.*(netstandard|netcore|net[5-9])).*") && Regex.IsMatch(xml, @"<(?:TargetFrameworks)>(?:.*(net[1-4])).*"))
+            {
+                xml = new Regex(@"(\s*)(</PropertyGroup>)(\s*)", RegexOptions.RightToLeft).Replace(xml, $"$1$2\r\n$1<ItemGroup Condition=\"'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'\">{refReplacement}</ItemGroup>$3", 1);
             }
 
             if (!Regex.IsMatch(xml, @"<\s*LangVersion\s*>")) {
