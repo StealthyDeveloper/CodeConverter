@@ -330,16 +330,6 @@ internal partial class MyEventClass
 
 internal partial class Class1
 {
-    static Class1()
-    {
-        SharedEventClassInstance = new MyEventClass();
-    }
-
-    public Class1(int num)
-    {
-        NonSharedEventClassInstance = new MyEventClass();
-    }
-
     private static MyEventClass _SharedEventClassInstance;
 
     private static MyEventClass SharedEventClassInstance
@@ -394,8 +384,18 @@ internal partial class Class1
         }
     }
 
+    public Class1(int num)
+    {
+        NonSharedEventClassInstance = new MyEventClass();
+    }
+
     public Class1(object obj) : this(7)
     {
+    }
+
+    static Class1()
+    {
+        SharedEventClassInstance = new MyEventClass();
     }
 
     public static void PrintTestMessage2()
@@ -464,18 +464,6 @@ internal partial class MyEventClass
 
 public partial class Class1
 {
-    public Class1(int num)
-    {
-        EventClassInstance = new MyEventClass();
-        EventClassInstance2 = new MyEventClass();
-    }
-
-    public Class1()
-    {
-        EventClassInstance = new MyEventClass();
-        EventClassInstance2 = new MyEventClass();
-    }
-
     private MyEventClass _EventClassInstance, _EventClassInstance2;
 
     private MyEventClass EventClassInstance
@@ -526,6 +514,18 @@ public partial class Class1
                 _EventClassInstance2.TestEvent += PrintTestMessage2;
             }
         }
+    }
+
+    public Class1()
+    {
+        EventClassInstance = new MyEventClass();
+        EventClassInstance2 = new MyEventClass();
+    }
+
+    public Class1(int num)
+    {
+        EventClassInstance = new MyEventClass();
+        EventClassInstance2 = new MyEventClass();
     }
 
     public Class1(object obj) : this()

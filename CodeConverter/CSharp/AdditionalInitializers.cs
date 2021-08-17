@@ -54,20 +54,51 @@ namespace ICSharpCode.CodeConverter.CSharp
             SyntaxTokenList modifiers, IEnumerable<ConstructorDeclarationSyntax> constructorsEnumerable, bool addConstructor, bool addedConstructorRequiresInitializeComponent)
         {
             if (!additionalInitializers.Any() && (!addConstructor || !addedConstructorRequiresInitializeComponent)) return convertedMembers;
+
             var constructors = new HashSet<ConstructorDeclarationSyntax>(constructorsEnumerable);
-            convertedMembers = convertedMembers.Except(constructors).ToList();
-            if (addConstructor) {
+            var ctorsWithIndex = convertedMembers
+               .Select((member, index) => new {Member = member as ConstructorDeclarationSyntax, Index = index})
+               .Where(memberWithIndex => memberWithIndex.Member != null)
+               .ToList();
+
+            var filteredCtorsWithIndex = ctorsWithIndex
+               .Where(memberWithIndex => constructors.Contains(memberWithIndex.Member))
+               .ToList();
+
+            convertedMembers = convertedMembers
+               .Except(constructors)
+               .ToList();
+
+            if (addConstructor)
+            {
                 var statements = new List<StatementSyntax>();
-                if (addedConstructorRequiresInitializeComponent) {
-                    statements.Add(SyntaxFactory.ExpressionStatement(SyntaxFactory.InvocationExpression(SyntaxFactory.IdentifierName("InitializeComponent"))));
+                if (addedConstructorRequiresInitializeComponent)
+                {
+                    var icIdentifier = SyntaxFactory.IdentifierName("InitializeComponent");
+                    var icInvocation = SyntaxFactory.InvocationExpression(icIdentifier);
+                    statements.Add(SyntaxFactory.ExpressionStatement(icInvocation));
                 }
-                constructors.Add(SyntaxFactory.ConstructorDeclaration(convertIdentifier)
-                    .WithBody(SyntaxFactory.Block(statements.ToArray()))
-                    .WithModifiers(modifiers));
+
+                var ctorDecl = SyntaxFactory.ConstructorDeclaration(convertIdentifier);
+                var ctorBody = SyntaxFactory.Block(statements.ToArray());
+
+                var newCtorDecl = ctorDecl
+                   .WithBody(ctorBody)
+                   .WithModifiers(modifiers);
+
+                filteredCtorsWithIndex.Add(new
+                {
+                    Member = newCtorDecl,
+                    Index = filteredCtorsWithIndex.LastOrDefault()?.Index + 1
+                            ?? ctorsWithIndex.LastOrDefault()?.Index + 1
+                            ?? 0
+                });
             }
-            foreach (var constructor in constructors) {
-                var newConstructor = WithAdditionalInitializers(constructor, additionalInitializers);
-                convertedMembers.Insert(0, newConstructor);
+
+            foreach (var filteredCtorWithIndex in filteredCtorsWithIndex)
+            {
+                var newConstructor = WithAdditionalInitializers(filteredCtorWithIndex.Member, additionalInitializers);
+                convertedMembers.Insert(filteredCtorWithIndex.Index, newConstructor);
             }
 
             return convertedMembers;

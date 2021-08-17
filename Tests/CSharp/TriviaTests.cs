@@ -99,6 +99,141 @@ internal static partial class Program
 hasLineCommentConversionIssue: true);//Auto-test code doesn't know to avoid adding comment on same line as region
         }
 
+
+        [Fact]
+        public async Task MultipleRegionsWinformsPartialClasses_AlignedCorrectlyAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(
+                @"Imports System.Windows.Forms
+
+Class MyForm
+#Region ""Events""
+
+  Public Event Foo()
+
+#End Region
+
+#Region ""Constructor""
+
+  Public Sub New()
+
+    ' This call is required by the Windows Form Designer.
+    InitializeComponent()
+  End Sub
+
+#End Region
+
+#Region ""Control events""
+
+  Private Sub tbLevels_SelectedIndexChanged(sender As Object, e As EventArgs) Handles tbLevels.SelectedIndexChanged
+    RaiseEvent Foo()
+  End Sub
+
+#End Region
+
+End Class
+
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
+Partial Class MyForm
+  Inherits Form
+
+  'NOTE: The following procedure is required by the Windows Form Designer
+  'It can be modified using the Windows Form Designer.  
+  'Do not modify it using the code editor.
+  <System.Diagnostics.DebuggerStepThrough()>
+  Private Sub InitializeComponent()
+
+    '
+    'tbLevels
+    '
+    Me.tbLevels.Name = ""tbLevels""
+
+  End Sub
+  Friend WithEvents tbLevels As TabControl
+End Class",
+                @"using System;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Windows.Forms;
+
+internal partial class MyForm
+{
+    #region Events
+
+    public event FooEventHandler Foo;
+
+    public delegate void FooEventHandler();
+
+    #endregion
+
+    #region Constructor
+
+    public MyForm()
+    {
+
+        // This call is required by the Windows Form Designer.
+        InitializeComponent();
+        _tbLevels.Name = ""tbLevels"";
+    }
+
+    #endregion
+
+    #region Control events
+
+    private void tbLevels_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        Foo?.Invoke();
+    }
+
+    #endregion
+
+}
+
+[Microsoft.VisualBasic.CompilerServices.DesignerGenerated()]
+internal partial class MyForm : Form
+{
+
+    // NOTE: The following procedure is required by the Windows Form Designer
+    // It can be modified using the Windows Form Designer.  
+    // Do not modify it using the code editor.
+    [DebuggerStepThrough()]
+    private void InitializeComponent()
+    {
+
+        // 
+        // tbLevels
+        // 
+        _tbLevels.Name = ""_tbLevels"";
+    }
+
+    private TabControl _tbLevels;
+
+    internal TabControl tbLevels
+    {
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        get
+        {
+            return _tbLevels;
+        }
+
+        [MethodImpl(MethodImplOptions.Synchronized)]
+        set
+        {
+            if (_tbLevels != null)
+            {
+                _tbLevels.SelectedIndexChanged -= tbLevels_SelectedIndexChanged;
+            }
+
+            _tbLevels = value;
+            if (_tbLevels != null)
+            {
+                _tbLevels.SelectedIndexChanged += tbLevels_SelectedIndexChanged;
+            }
+        }
+    }
+}", hasLineCommentConversionIssue: true);//Auto-test code doesn't know to avoid adding comment on same line as region
+        }
+
         [Fact]
         public async Task Issue15_IfTrueAsync()
         {

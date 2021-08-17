@@ -206,7 +206,8 @@ namespace ICSharpCode.CodeConverter.CSharp
                         (await ConvertMemberAsync(member)).Yield().Concat(GetAdditionalDeclarations(member)))
                     );
 
-                return WithAdditionalMembers(convertedMembers).ToArray();//Ensure evaluated before popping type context
+                var newconvertedMembers = WithAdditionalMembers(convertedMembers).ToArray();
+                return newconvertedMembers;//Ensure evaluated before popping type context
             } finally {
                 _typeContext.Pop();
             }
@@ -298,7 +299,7 @@ namespace ICSharpCode.CodeConverter.CSharp
             var (parameters, constraints) = await SplitTypeParametersAsync(classStatement.TypeParameterList);
             var convertedIdentifier = CommonConversions.ConvertIdentifier(classStatement.Identifier);
 
-            return SyntaxFactory.ClassDeclaration(
+            var classBlock = SyntaxFactory.ClassDeclaration(
                 attributes, ConvertTypeBlockModifiers(classStatement, TokenContext.Global),
                 convertedIdentifier,
                 parameters,
@@ -306,6 +307,7 @@ namespace ICSharpCode.CodeConverter.CSharp
                 constraints,
                 SyntaxFactory.List(await ConvertMembersAsync(node))
             );
+            return classBlock;
         }
 
         private async Task<BaseListSyntax> ConvertInheritsAndImplementsAsync(SyntaxList<VBSyntax.InheritsStatementSyntax> inherits, SyntaxList<VBSyntax.ImplementsStatementSyntax> implements)
