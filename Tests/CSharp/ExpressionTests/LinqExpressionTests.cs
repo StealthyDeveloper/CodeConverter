@@ -89,37 +89,6 @@ End Sub",
         }
 
         [Fact]
-        public async Task Linq2Async()
-        {
-            await TestConversionVisualBasicToCSharpAsync(@"Public Shared Sub Linq40()
-    Dim numbers As Integer() = {5, 4, 1, 3, 9, 8, 6, 7, 2, 0}
-    Dim numberGroups = From n In numbers Group n By __groupByKey1__ = n Mod 5 Into g = Group Select New With {Key .Remainder = __groupByKey1__, Key .Numbers = g}
-    
-    For Each g In numberGroups
-        Console.WriteLine($""Numbers with a remainder of { g.Remainder} when divided by 5:"")
-
-        For Each n In g.Numbers
-            Console.WriteLine(n)
-        Next
-    Next
-End Sub",
-                @"public static void Linq40()
-{
-    var numbers = new[] { 5, 4, 1, 3, 9, 8, 6, 7, 2, 0 };
-    var numberGroups = from n in numbers
-                       group n by (n % 5) into g
-                       let __groupByKey1__ = g.Key
-                       select new { Remainder = __groupByKey1__, Numbers = g };
-    foreach (var g in numberGroups)
-    {
-        Console.WriteLine($""Numbers with a remainder of {g.Remainder} when divided by 5:"");
-        foreach (var n in g.Numbers)
-            Console.WriteLine(n);
-    }
-}");
-        }
-
-        [Fact()]
         public async Task Linq3Async()
         {
             await TestConversionVisualBasicToCSharpAsync(@"Class Product
@@ -370,7 +339,39 @@ End Sub", @"private static void ASub()
 }");
         }
 
-        [Fact()]
+        [Fact]
+        public async Task LinqGroupByKeyVariableToLetClauseAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Shared Sub Linq40()
+    Dim numbers As Integer() = {5, 4, 1, 3, 9, 8, 6, 7, 2, 0}
+    Dim numberGroups = From n In numbers Group n By __groupByKey1__ = n Mod 5 Into g = Group Select New With {Key .Remainder = __groupByKey1__, Key .Numbers = g}
+    
+    For Each g In numberGroups
+        Console.WriteLine($""Numbers with a remainder of { g.Remainder} when divided by 5:"")
+
+        For Each n In g.Numbers
+            Console.WriteLine(n)
+        Next
+    Next
+End Sub",
+                @"public static void Linq40()
+{
+    var numbers = new[] { 5, 4, 1, 3, 9, 8, 6, 7, 2, 0 };
+    var numberGroups = from n in numbers
+                       group n by (n % 5) into g1
+                       let __groupByKey1__ = g1.Key
+                       let g = g1.AsEnumerable()
+                       select new { Remainder = __groupByKey1__, Numbers = g };
+    foreach (var g in numberGroups)
+    {
+        Console.WriteLine($""Numbers with a remainder of {g.Remainder} when divided by 5:"");
+        foreach (var n in g.Numbers)
+            Console.WriteLine(n);
+    }
+}");
+        }
+
+        [Fact]
         public async Task LinqGroupByTwoThingsAnonymouslyAsync()
         {
             await TestConversionVisualBasicToCSharpAsync(@"Public Class Class1
@@ -393,43 +394,82 @@ public partial class Class1
             // Current characterization is slightly wrong, I think it still needs this on the end "into g select new { Length = g.Key.Length, Count = g.Key.Count, Group = g.AsEnumerable() }"
         }
 
-        [Fact()]
-        public async Task LinqSelectVariableDeclarationAsync()
+        [Fact]
+        public async Task LinqGroupByMultipleKeysAndOutputFieldAsync()
         {
-            await TestConversionVisualBasicToCSharpAsync(@"Imports System
-Imports System.Linq
-
-Public Class Class717
-        Sub Main()
-        Dim arr(1) as Integer
-        arr(0) = 0
-        arr(1) = 1
-
-        Dim r = From e In arr
-                Select p = $""value: {e}""
-                Select l = p.Substring(1)
-                Select x = l
-
-        For each m In r
-            Console.WriteLine(m)
-        Next
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class Class1
+    Sub Foo()
+        Dim xs As New List(Of String)
+        Dim y = From x In xs
+                Group x By length = x.Length, count = x.Count() Into Group
     End Sub
-End Class", @"using System;
+End Class", @"using System.Collections.Generic;
 using System.Linq;
 
-public partial class Class717
+public partial class Class1
 {
-    public void Main()
+    public void Foo()
     {
-        var arr = new int[2];
-        arr[0] = 0;
-        arr[1] = 1;
-        var r = from e in arr
-                let p = $""value: {e}""
-                let l = p.Substring(1)
-                select l;
-        foreach (var m in r)
-            Console.WriteLine(m);
+        var xs = new List<string>();
+        var y = from x in xs
+                group x by new { length = x.Length, count = x.Count() };
+    }
+}");
+        }
+
+        [Fact]
+        public async Task LinqGroupByAliasingWithContinuationAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class Class1
+    Sub Foo()
+        Dim xs As New List(Of String)
+        Dim y = From x In xs
+                Group x By length = x.Length, count = x.Count() Into xsgroup = Group
+                Select Result = length - count 
+    End Sub
+End Class", @"using System.Collections.Generic;
+using System.Linq;
+
+public partial class Class1
+{
+    public void Foo()
+    {
+        var xs = new List<string>();
+        var y = from x in xs
+                group x by new { length = x.Length, count = x.Count() } into g
+                let length = g.Key.length
+                let count = g.Key.count
+                let xsgroup = g.AsEnumerable()
+                select (length - count);
+    }
+}");
+        }
+
+        [Fact]
+        public async Task LinqGroupByAggregationFunctionAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class Class1
+    Sub Foo()
+        Dim xs As New List(Of String)
+        Dim y = From x In xs
+                Group x By length = x.Length, count = x.Count() Into Group, Max()
+                Select Result = length - count + Max.length
+    End Sub
+End Class", @"using System.Collections.Generic;
+using System.Linq;
+
+public partial class Class1
+{
+    public void Foo()
+    {
+        var xs = new List<string>();
+        var y = from x in xs
+                group x by new { length = x.Length, count = x.Count() } into g
+                let length = g.Key.length
+                let count = g.Key.count
+                let Group = g.AsEnumerable()
+                let Max = g.Max()
+                select (length - count + Max.Length);
     }
 }");
         }
@@ -527,8 +567,9 @@ internal static partial class Ext
                    _accountEntry.InterestStartDate,
                    _accountEntry.ComputeInterestFlag,
                    _accountEntry.SponsorClaimRevision
-               } into Group
-               let _keys = Group.Key
+               } into g
+               let _keys = g.Key
+               let Group = g.AsEnumerable()
                select new AccountEntry()
                {
                    LookupAccountEntryTypeId = _keys.LookupAccountEntryTypeId,
@@ -546,6 +587,47 @@ internal static partial class Ext
                                                from _claimDetail in _accountEntry.AccountEntryClaimDetails
                                                select _claimDetail).Reduce().ToList()
                };
+    }
+}");
+        }
+
+        [Fact]
+        public async Task LinqSelectVariableDeclarationAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Imports System
+Imports System.Linq
+
+Public Class Class717
+        Sub Main()
+        Dim arr(1) as Integer
+        arr(0) = 0
+        arr(1) = 1
+
+        Dim r = From e In arr
+                Select p = $""value: {e}""
+                Select l = p.Substring(1)
+                Select x = l
+
+        For each m In r
+            Console.WriteLine(m)
+        Next
+    End Sub
+End Class", @"using System;
+using System.Linq;
+
+public partial class Class717
+{
+    public void Main()
+    {
+        var arr = new int[2];
+        arr[0] = 0;
+        arr[1] = 1;
+        var r = from e in arr
+                let p = $""value: {e}""
+                let l = p.Substring(1)
+                select l;
+        foreach (var m in r)
+            Console.WriteLine(m);
     }
 }");
         }
