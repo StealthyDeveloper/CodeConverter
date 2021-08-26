@@ -754,6 +754,31 @@ public partial class A
         }
 
         [Fact]
+        public async Task Cs0168TreatWarningAsErrorsAsync()
+        {
+            await TestConversionVisualBasicToCSharpAsync(@"Public Class A
+Sub Test()
+    Try
+    Catch ex As Exception
+    End Try
+End Sub
+End Class", @"using System;
+
+public partial class A
+{
+    public void Test()
+    {
+        try
+        {
+        }
+        catch (Exception)
+        {
+        }
+    }
+}", TreatWarningsAsErrors);
+        }
+
+        [Fact]
         public async Task Cs0169TreatWarningAsErrorsAsync()
         {
             await TestConversionVisualBasicToCSharpAsync(@"Public Class A

@@ -33,6 +33,18 @@ namespace ICSharpCode.CodeConverter.Util
             return source;
         }
 
+        public static IEnumerable<T> WithoutNulls<T>(this IEnumerable<T> source)
+        {
+            return source
+               .NullAsEmpty()
+               .Where(element => element != null);
+        }
+
+        public static IEnumerable<T> NullAsEmpty<T>(this IEnumerable<T> source)
+        {
+            return source ?? Enumerable.Empty<T>();
+        }
+
         public static IReadOnlyCollection<T> ToReadOnlyCollection<T>(this IEnumerable<T> source)
         {
             if (source == null) {

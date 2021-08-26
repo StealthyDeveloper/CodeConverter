@@ -15,7 +15,7 @@ namespace ICSharpCode.CodeConverter.CSharp
 {
     public class DiagnosticsResolver
     {
-        private static readonly string[] UnusedDiagnosticIds = { "CS0169", "CS0414", "CS0219" };
+        private static readonly string[] UnusedDiagnosticIds = { "CS0168", "CS0169", "CS0414", "CS0219" };
 
         public async Task<SyntaxNode> ResolveDiagnosticsAsync(Document document)
         {
@@ -44,18 +44,27 @@ namespace ICSharpCode.CodeConverter.CSharp
                        .Contains(designerGeneratedName))) ?? false)
                .SelectAsync(async node => await GetFieldTypeTupleAsync(document, semanticModel, node));
 
-            var rootWithAssignments = root.ReplaceNodes(icNodes, (o, r) => ComputeAssignmentReplacements(o, unassignedFields));
+            var rootWithAssignments = root.ReplaceNodes(icNodes, (o, _) => ComputeAssignmentReplacements(o, unassignedFields));
 
-            var unusedVariablesAndFields = diagnostics
+            var unusedVariableAndFieldNodes = diagnostics
                .Where(d => UnusedDiagnosticIds.Contains(d.Id))
                .Where(d => d.Location?.SourceTree == tree)
                .Select(d => rootWithAssignments.FindNode(d.Location.SourceSpan))
-               .Select(node => (SyntaxNode)node.FirstAncestorOrSelf<LocalDeclarationStatementSyntax>() ?? node.FirstAncestorOrSelf<FieldDeclarationSyntax>())
                .ToList();
 
-            var noUnusedRoot = rootWithAssignments.RemoveNodes(unusedVariablesAndFields, SyntaxRemoveOptions.KeepNoTrivia);
+            var unusedVariableAndFieldDeclNodes = unusedVariableAndFieldNodes
+               .Select(node => (SyntaxNode)node.FirstAncestorOrSelf<LocalDeclarationStatementSyntax>() ?? node.FirstAncestorOrSelf<FieldDeclarationSyntax>())
+               .WithoutNulls();
+            
+            var unusedVariableAndFieldIdNodes = unusedVariableAndFieldNodes
+               .Where(node => node is CatchDeclarationSyntax) 
+               .Select(node => ((CatchDeclarationSyntax)node).Identifier)
+               .WithoutNulls();
 
-            return noUnusedRoot;
+            var noUnusedDeclNodesRoot = rootWithAssignments.RemoveNodes(unusedVariableAndFieldDeclNodes, SyntaxRemoveOptions.KeepNoTrivia);
+            var noUnusedIdNodesRoot = noUnusedDeclNodesRoot.ReplaceTokens(unusedVariableAndFieldIdNodes, (o, r) => SyntaxFactory.Token(SyntaxKind.None));
+
+            return noUnusedIdNodesRoot;
         }
 
         private static async Task<(FieldDeclarationSyntax node, TypeSyntax fieldAssignmentType)> GetFieldTypeTupleAsync(Document document, SemanticModel semanticModel, FieldDeclarationSyntax node)
@@ -81,8 +90,10 @@ namespace ICSharpCode.CodeConverter.CSharp
             TypeSyntax fieldAssignmentType)> unassignedFields)
         {
             var expressions = new List<ExpressionStatementSyntax>();
-            foreach (var (field, fieldAssignmentType) in unassignedFields) {
-                expressions.AddRange(field.Declaration.Variables.Select(variable => {
+            foreach (var (field, fieldAssignmentType) in unassignedFields)
+            {
+                expressions.AddRange(field.Declaration.Variables.Select(variable =>
+                {
                     var lhs = SyntaxFactory.IdentifierName(variable.Identifier.Text);
                     var rhs = SyntaxFactory.ObjectCreationExpression(fieldAssignmentType,
                         SyntaxFactory.ArgumentList(), null);
